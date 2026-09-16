@@ -1,0 +1,21 @@
+{
+  "name": "ebook-reader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Folio — a tile-based, DeepSeek-inspired e-book reader (legal public-domain sources only).",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "web": "pnpm --filter web dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
