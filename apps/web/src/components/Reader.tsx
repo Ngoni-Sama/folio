@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ReactReader } from 'react-reader';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ReactReader,
+  ReactReaderStyle,
+  type IReactReaderStyle,
+} from 'react-reader';
 import type { Rendition, Contents } from 'epubjs';
 import {
   ArrowLeft,
@@ -15,7 +19,7 @@ import {
   annotationsToMarkdown,
   clampPercent,
 } from '@ebook/core';
-import { readerThemes, type ReaderThemeName } from '@ebook/ui/tokens';
+import { colors, readerThemes, type ReaderThemeName } from '@ebook/ui/tokens';
 import { useLibrary } from '../lib/store';
 import { readerUrlFor } from '../lib/reader';
 
@@ -53,6 +57,21 @@ export function Reader({ book, onBack }: Props) {
     logOpen(book.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book.id]);
+
+  // react-reader's own frame defaults to white; match it to the reading theme.
+  const readerStyles = useMemo<IReactReaderStyle>(() => {
+    const t = readerThemes[theme];
+    return {
+      ...ReactReaderStyle,
+      container: { ...ReactReaderStyle.container, background: t.bg },
+      readerArea: { ...ReactReaderStyle.readerArea, backgroundColor: t.bg },
+      arrow: { ...ReactReaderStyle.arrow, color: t.text },
+      arrowHover: { ...ReactReaderStyle.arrowHover, color: colors.accent },
+      tocArea: { ...ReactReaderStyle.tocArea, background: t.bg },
+      tocAreaButton: { ...ReactReaderStyle.tocAreaButton, color: t.text },
+      tocButtonBar: { ...ReactReaderStyle.tocButtonBar, background: t.text },
+    };
+  }, [theme]);
 
   const applyTheme = useCallback((r: Rendition, name: ReaderThemeName) => {
     const t = readerThemes[name];
@@ -259,6 +278,7 @@ export function Reader({ book, onBack }: Props) {
           getRendition={handleGetRendition}
           epubInitOptions={{ openAs: 'epub' }}
           epubOptions={{ allowScriptedContent: false }}
+          readerStyles={readerStyles}
         />
 
         {notesOpen && (
