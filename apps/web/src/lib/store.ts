@@ -22,6 +22,11 @@ const idbStorage: StateStorage = {
 interface LibraryState {
   /** Saved books keyed by book id. */
   library: Record<string, Book>;
+  /**
+   * Metadata for every book ever opened, keyed by id — lets History show
+   * books that were read but never explicitly added to the library.
+   */
+  books: Record<string, Book>;
   /** Reading progress keyed by book id. */
   progress: Record<string, Progress>;
   /** Annotations keyed by book id. */
@@ -38,13 +43,14 @@ interface LibraryState {
   addAnnotation: (a: Annotation) => void;
   removeAnnotation: (bookId: string, id: string) => void;
 
-  logOpen: (bookId: string) => void;
+  logOpen: (book: Book) => void;
 }
 
 export const useLibrary = create<LibraryState>()(
   persist(
     (set, getState) => ({
       library: {},
+      books: {},
       progress: {},
       annotations: {},
       history: [],
@@ -90,12 +96,13 @@ export const useLibrary = create<LibraryState>()(
           },
         })),
 
-      logOpen: (bookId) =>
+      logOpen: (book) =>
         set((s) => ({
+          books: { ...s.books, [book.id]: book },
           history: [
             {
               id: crypto.randomUUID(),
-              bookId,
+              bookId: book.id,
               openedAt: new Date().toISOString(),
               durationSeconds: 0,
             },

@@ -54,7 +54,7 @@ export function Reader({ book, onBack }: Props) {
 
   // Log a history entry once per open.
   useEffect(() => {
-    logOpen(book.id);
+    logOpen(book);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book.id]);
 

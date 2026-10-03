@@ -10,9 +10,16 @@ interface Props {
 export function History({ onOpen }: Props) {
   const history = useLibrary((s) => s.history);
   const library = useLibrary((s) => s.library);
+  const books = useLibrary((s) => s.books);
   const progress = useLibrary((s) => s.progress);
 
-  if (history.length === 0) {
+  // Entries logged before book metadata was cached have nothing to show.
+  const entries = history.flatMap((entry) => {
+    const book = library[entry.bookId] ?? books[entry.bookId];
+    return book ? [{ entry, book }] : [];
+  });
+
+  if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
         <Clock className="h-8 w-8 text-textMuted" />
@@ -26,10 +33,8 @@ export function History({ onOpen }: Props) {
 
   return (
     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
-      {history.map((entry) => {
-        const book = library[entry.bookId];
+      {entries.map(({ entry, book }) => {
         const pct = progress[entry.bookId]?.percentage ?? 0;
-        if (!book) return null;
         return (
           <li key={entry.id}>
             <button
