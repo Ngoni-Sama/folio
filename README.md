@@ -58,12 +58,30 @@ pnpm --filter web build
 through `/proxy/gutenberg`:
 
 - **Dev:** Vite dev-server proxy (`apps/web/vite.config.ts`)
-- **Prod:** rewrite in `apps/web/vercel.json`
+- **Prod:** Cloudflare Pages Function (`functions/proxy/gutenberg/[[path]].js`)
 
-## Deploy (Vercel)
+## Deploy (Cloudflare Pages — free)
 
-Set the project root to `apps/web` (or use the included `vercel.json`). Build command
-`pnpm build`, output `dist`. No secrets required for the MVP.
+Connect the GitHub repo in the Cloudflare dashboard → **Workers & Pages → Create → Pages**,
+then set:
+
+| Setting | Value |
+|---------|-------|
+| Root directory | *(leave as repo root)* |
+| Build command | `pnpm --filter web build` |
+| Build output directory | `apps/web/dist` |
+| Environment variable | `NODE_VERSION=20` *(a `.node-version` file also sets this)* |
+
+pnpm is auto-detected from `pnpm-lock.yaml`. The Gutenberg proxy runs as a Pages Function
+(`functions/proxy/gutenberg/[[path]].js`) — no config needed, no secrets required for the MVP.
+Every push to `main` auto-deploys; free SSL + global CDN are included.
+
+CLI alternative:
+
+```bash
+pnpm --filter web build
+npx wrangler pages deploy apps/web/dist --project-name folio
+```
 
 ## License
 
