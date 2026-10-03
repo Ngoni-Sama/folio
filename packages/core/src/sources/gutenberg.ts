@@ -6,82 +6,132 @@ import type {
 } from '../types';
 
 /**
- * Project Gutenberg via the Gutendex API (https://gutendex.com/).
- * 70,000+ public-domain books, most with a direct EPUB URL.
+ * Project Gutenberg via its official OPDS search feed
+ * (https://www.gutenberg.org/ebooks/search.opds/). 70,000+ public-domain books,
+ * all with a direct EPUB.
+ *
+ * We query gutenberg.org directly rather than the third-party Gutendex API,
+ * which has had long outages. gutenberg.org sends no CORS headers, so browsers
+ * must pass a same-origin proxy as `baseUrl` (e.g. '/proxy/gutenberg');
+ * native clients can use the default.
+ *
+ * The feed is parsed with plain string matching rather than DOMParser so this
+ * module stays usable outside the browser (React Native).
  */
-const BASE = 'https://gutendex.com/books';
+export const GUTENBERG_ORIGIN = 'https://www.gutenberg.org';
 
-interface GutendexAuthor {
-  name: string;
+export interface GutenbergOptions {
+  /** Where to send catalog requests. Defaults to gutenberg.org. */
+  baseUrl?: string;
 }
 
-interface GutendexBook {
-  id: number;
+interface OpdsEntry {
+  id: string;
   title: string;
-  authors: GutendexAuthor[];
-  subjects: string[];
-  languages: string[];
-  formats: Record<string, string>;
+  author: string | null;
 }
 
-interface GutendexResponse {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: GutendexBook[];
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+};
+
+function decodeXml(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (match, code: string) => {
+    if (code[0] === '#') {
+      const n =
+        code[1]?.toLowerCase() === 'x'
+          ? parseInt(code.slice(2), 16)
+          : parseInt(code.slice(1), 10);
+      return Number.isNaN(n) ? match : String.fromCodePoint(n);
+    }
+    return ENTITIES[code.toLowerCase()] ?? match;
+  });
 }
 
-function pickCover(formats: Record<string, string>): string | null {
-  return formats['image/jpeg'] ?? null;
+function tag(xml: string, name: string): string | null {
+  const m = xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`));
+  return m?.[1] !== undefined ? decodeXml(m[1].trim()) : null;
 }
 
-function pickEpub(formats: Record<string, string>): string | null {
-  const key = Object.keys(formats).find((k) =>
-    k.startsWith('application/epub+zip'),
-  );
-  return key ? (formats[key] ?? null) : null;
+/** Parse book entries out of an OPDS search feed. Exported for tests. */
+export function parseOpdsFeed(xml: string): { entries: OpdsEntry[]; hasNext: boolean } {
+  const entries: OpdsEntry[] = [];
+
+  for (const [, body = ''] of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+    // Book entries have ids like https://www.gutenberg.org/ebooks/1342.opds;
+    // navigation entries ("Sort by…", author pages) don't match and are skipped.
+    const id = tag(body, 'id')?.match(/\/ebooks\/(\d+)\.opds$/)?.[1];
+    const title = tag(body, 'title');
+    if (!id || !title) continue;
+
+    // <content> is the author line, or "1158 downloads" when there's no author.
+    const content = tag(body, 'content');
+    const author = content && !/^\d+ downloads?$/.test(content) ? content : null;
+
+    entries.push({ id, title, author });
+  }
+
+  return { entries, hasNext: /<link[^>]*rel="next"/.test(xml) };
 }
 
-function normalize(b: GutendexBook): Book {
+function normalize(e: OpdsEntry): Book {
   return {
-    id: `gutenberg:${b.id}`,
+    id: `gutenberg:${e.id}`,
     source: 'gutenberg',
-    sourceId: String(b.id),
-    title: b.title,
-    author: b.authors[0]?.name ?? null,
-    coverUrl: pickCover(b.formats),
-    epubUrl: pickEpub(b.formats),
-    language: b.languages[0] ?? null,
+    sourceId: e.id,
+    title: e.title,
+    author: e.author,
+    coverUrl: `${GUTENBERG_ORIGIN}/cache/epub/${e.id}/pg${e.id}.cover.medium.jpg`,
+    epubUrl: `${GUTENBERG_ORIGIN}/ebooks/${e.id}.epub.images`,
+    language: null,
     description: null,
-    subjects: b.subjects.slice(0, 6),
-    readOnlineUrl: `https://www.gutenberg.org/ebooks/${b.id}`,
+    subjects: [],
+    readOnlineUrl: `${GUTENBERG_ORIGIN}/ebooks/${e.id}`,
   };
 }
 
-export const gutenberg: BookSourceAdapter = {
-  source: 'gutenberg',
-  label: 'Project Gutenberg',
+const PAGE_SIZE = 25;
 
-  async search(query, opts: SearchOptions = {}): Promise<SearchResult> {
-    const url = new URL(BASE);
-    if (query) url.searchParams.set('search', query);
-    if (opts.language) url.searchParams.set('languages', opts.language);
-    if (opts.page && opts.page > 1) {
-      url.searchParams.set('page', String(opts.page));
-    }
+export function createGutenbergAdapter(
+  options: GutenbergOptions = {},
+): BookSourceAdapter {
+  const base = (options.baseUrl ?? GUTENBERG_ORIGIN).replace(/\/$/, '');
 
-    const res = await fetch(url, { signal: opts.signal });
-    if (!res.ok) throw new Error(`Gutenberg search failed: ${res.status}`);
-    const data = (await res.json()) as GutendexResponse;
+  return {
+    source: 'gutenberg',
+    label: 'Project Gutenberg',
 
-    return {
-      books: data.results.map(normalize),
-      hasMore: Boolean(data.next),
-      nextPage: data.next ? (opts.page ?? 1) + 1 : null,
-    };
-  },
+    async search(query, opts: SearchOptions = {}): Promise<SearchResult> {
+      if (!query) return { books: [], hasMore: false, nextPage: null };
 
-  async getDownloadUrl(book: Book): Promise<string | null> {
-    return book.epubUrl;
-  },
-};
+      const page = opts.page ?? 1;
+      // Gutenberg's search syntax filters language with an "l.<code>" term.
+      const q = opts.language ? `${query} l.${opts.language}` : query;
+      const params = new URLSearchParams({ query: q });
+      if (page > 1) params.set('start_index', String((page - 1) * PAGE_SIZE + 1));
+
+      const res = await fetch(`${base}/ebooks/search.opds/?${params}`, {
+        signal: opts.signal,
+      });
+      if (!res.ok) throw new Error(`Gutenberg search failed: ${res.status}`);
+
+      const { entries, hasNext } = parseOpdsFeed(await res.text());
+      return {
+        books: entries.map(normalize),
+        hasMore: hasNext,
+        nextPage: hasNext ? page + 1 : null,
+      };
+    },
+
+    async getDownloadUrl(book: Book): Promise<string | null> {
+      return book.epubUrl;
+    },
+  };
+}
+
+/** Default adapter talking to gutenberg.org directly (no CORS proxy). */
+export const gutenberg = createGutenbergAdapter();

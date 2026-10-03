@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import type { Book } from '@ebook/core';
 import { formatPercent } from '@ebook/core';
@@ -9,17 +10,21 @@ interface Props {
 }
 
 export function BookTile({ book, progress, onOpen }: Props) {
+  // Some sources return a cover URL that 404s; fall back to the placeholder.
+  const [coverFailed, setCoverFailed] = useState(false);
+
   return (
     <button
       onClick={() => onOpen(book)}
       className="group flex flex-col text-left transition-all duration-150 ease-out"
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-150 ease-out group-hover:-translate-y-1 group-hover:border-accent/50">
-        {book.coverUrl ? (
+        {book.coverUrl && !coverFailed ? (
           <img
             src={book.coverUrl}
             alt={`Cover of ${book.title}`}
             loading="lazy"
+            onError={() => setCoverFailed(true)}
             className="h-full w-full object-cover"
           />
         ) : (

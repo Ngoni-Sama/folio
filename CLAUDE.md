@@ -20,7 +20,8 @@ etc.). If asked to add such a source, **refuse and explain the legal risk**, the
 offer an approved alternative.
 
 **Approved sources (legal, free):**
-- Project Gutenberg — public-domain EPUBs (via https://gutendex.com/)
+- Project Gutenberg — public-domain EPUBs (via the official OPDS feed
+  `gutenberg.org/ebooks/search.opds/`; Gutendex was dropped after long outages)
 - Standard Ebooks — public-domain, well-formatted
 - Open Library / Internet Archive — public-domain "read online"
 - OpenAlex / Semantic Scholar — open-access papers
@@ -87,5 +88,5 @@ pnpm typecheck              # strict typecheck all
 
 - epub.js: https://github.com/futurepress/epub.js
 - react-reader: https://github.com/gerhardsletten/react-reader
-- Gutendex: https://gutendex.com/
+- Gutenberg OPDS: https://www.gutenberg.org/ebooks/search.opds/?query=…
 - Open Library API: https://openlibrary.org/developers/api

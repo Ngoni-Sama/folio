@@ -1,4 +1,8 @@
-import { adapters, type Book } from '@ebook/core';
+import { createAdapters, type Book } from '@ebook/core';
+import { GUTENBERG_PROXY } from './reader';
+
+// Gutenberg's catalog goes through the same-origin proxy (no CORS upstream).
+const adapters = createAdapters({ gutenbergBaseUrl: GUTENBERG_PROXY });
 
 export interface SearchPage {
   books: Book[];

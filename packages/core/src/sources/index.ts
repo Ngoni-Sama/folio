@@ -1,8 +1,31 @@
 import type { Book, BookSourceAdapter, SearchOptions } from '../types';
-import { gutenberg } from './gutenberg';
+import {
+  createGutenbergAdapter,
+  gutenberg,
+  parseOpdsFeed,
+  GUTENBERG_ORIGIN,
+  type GutenbergOptions,
+} from './gutenberg';
 import { openLibrary } from './openlibrary';
 
-export { gutenberg, openLibrary };
+export {
+  createGutenbergAdapter,
+  gutenberg,
+  openLibrary,
+  parseOpdsFeed,
+  GUTENBERG_ORIGIN,
+  type GutenbergOptions,
+};
+
+export interface AdapterOptions {
+  /** Same-origin proxy for gutenberg.org (needed in browsers — no CORS). */
+  gutenbergBaseUrl?: string;
+}
+
+/** Build the approved-source adapters, e.g. with a browser CORS proxy. */
+export function createAdapters(opts: AdapterOptions = {}): BookSourceAdapter[] {
+  return [createGutenbergAdapter({ baseUrl: opts.gutenbergBaseUrl }), openLibrary];
+}
 
 export const adapters: BookSourceAdapter[] = [gutenberg, openLibrary];
 
